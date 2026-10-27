@@ -132,4 +132,9 @@ def main():
         print(quote())
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n" + div())
+        print("See you again!")
+        sys.exit(0)
