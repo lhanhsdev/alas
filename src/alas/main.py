@@ -23,9 +23,23 @@ def firstrun_check():
         return True
     else: return False
 
+# Work in progress
 def firstrun():
-    print("First run detected.")
+    print("Hello and welcome to alas! Let's set it up."
+          "[1/3] Vault setup")
+    vault = input("Vault name [personal]: ")
+    print("[2/3] Vault encryption")
+    passwd = getpass("Master password (leave blank to disable): ")
+    if passwd.strip() == "":
+        print("Vault encryption disabled.")
+    else:
+        print("A duress password is a discreet way of signaling you are being forced to access a system or account. Entering the duress password will permanently wipe the currently selected vault.")
+        duressyn = input("Would you like to add a duress password?")
+        # Work in progress
+    print("[3/3] Configure alas")
+    # Work in progress
 
+# Function to print the welcome message.
 def welc():
     # This part looks funny because variables have been collapsed
     username = os.environ.get("USER", "unknown")
@@ -37,24 +51,30 @@ def welc():
     padding = max(1, min(48, columns) - len(f"Welcome, {username}") - len(timestr))
     return f"Welcome, {username}" + (" " * padding) + timestr
 
+# Function to print a divider.
 def div():
     cols = min(shutil.get_terminal_size().columns, 48)
     return "—" * cols
 
-def quotes():
+# Function to get and print a quote.
+def quote():
     path = Path("~/.config/alas/quotes.txt").expanduser()
     try:
         with path.open("r", encoding="utf-8") as f:
             lines = f.readlines()
         return random.choice(lines).rstrip("\n")
     except FileNotFoundError:
-        return "Quotes could not be loaded at this time."
+        return "Quote could not be loaded at this time."
 
-# Main logic
-if firstrun_check():
-    firstrun()
-else:
-    print(welc())
-    print(div())
-    print(div())
-    print(quotes())
+# Main execution starts here
+def main():
+    if firstrun_check():
+        firstrun()
+    else:
+        print(welc())
+        print(div())
+        print(div())
+        print(quote())
+
+if __name__ == "__main__":
+    main()
