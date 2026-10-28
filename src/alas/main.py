@@ -12,28 +12,22 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-# Set up the argument parser; Work in progress
-# Kinda fucked up ts part lwk
-#parser = argparse.ArgumentParser(
-    #prog = "alas",
-    #description = "A productivity system for minimalists."
-#)
-#parser.add_argument("object")
-#parser.add_argument("target")
-#subparsers = parser.add_subparsers(dest="subcommand, "help="Specify the subsystem to use", required=False)
-#notesparser = subparsers.add_argument("notes", help=" Relating to the Notes subsystem")
-#notesparser.add_argument("action" help="Specify the action to do")
-#notesparser.add_argument("object" help="Specify the object to be acted upon")
+parser = argparse.ArgumentParser(prog="alas", description="A productivity system for minimalists.")
+subparsers = parser.add_subparsers(dest="subcommand", help="Specify the subsystem to use", required=False)
+notesparser = subparsers.add_parser("notes", help="Relating to the Notes subsystem")
+notesparser.add_argument("action", help="Specify the action to do")
+notesparser.add_argument("object", help="Specify the object to be acted upon")
+notesparser.add_argument("context", nargs="?", help="Specify the context for the action")
 
-#args = parser.parse_args()
+args = parser.parse_args()
+
+home = Path("~/.config/alas").expanduser()
+vaults = Path(home / "vaults")
 
 def firstrun_check():
     confdir = Path("~/.config/alas").expanduser()
     if not confdir.is_dir():
         confdir.mkdir(parents=True, exist_ok=True)
-        global home, vaults
-        home = Path("~/.config/alas").expanduser()
-        vaults = Path(home / "vaults")
         vaults.mkdir()
         with open(home / "config.conf", "w") as file:
             file.write("INITIAL CONFIGURATION HERE; WORK IN PROGRESS / TO BE DECIDED")
@@ -49,7 +43,7 @@ def firstrun():
     if vault.strip() == "":
         vault = "personal"
     print("[2/3] Vault encryption")
-    passwd = getpass.getpass("Master password (leave blank to disable): ").strip()
+    passwd = getpass.getpass("Encryption password (leave blank to disable; can be changed later): ").strip()
     if passwd == "":
         print("Vault encryption disabled.")
     print("[3/3] Configure alas")
@@ -148,13 +142,19 @@ def main():
     if firstrun_check():
         firstrun()
     else:
-        # This is what 'alas list' does.
-        print(welc())
-        print(div())
-        # Print available vaults here
-        print(div())
-        # Print notes and to-dos in dual-column. Left-right order configurable.
-        print(quote())
+        if args.subcommand == "notes":
+            if args.action == "encrypt":
+                vault_encrypt((args.object), str(args.context))
+            if args.action == "decrypt":
+                vault_decrypt((args.object), str(args.context))
+        else:
+            # This is what 'alas list' does.
+            print(welc())
+            print(div())
+            # Print available vaults here
+            print(div())
+            # Print notes and to-dos in dual-column. Left-right order configurable.
+            print(quote())
 
 if __name__ == "__main__":
     try:
