@@ -12,7 +12,10 @@ from datetime import datetime
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+# Holy deps bro but its all std lib (most) anyway so who cares
+# I probs have too high standards for imports/deps but ehh idk
 
+# Argument parsers set-up
 parser = argparse.ArgumentParser(prog="alas", description="A productivity system for minimalists.")
 subparsers = parser.add_subparsers(dest="subcommand", help="Specify the subsystem to use", required=False)
 notesparser = subparsers.add_parser("notes", help="Relating to the Notes subsystem")
@@ -29,6 +32,7 @@ args = parser.parse_args()
 home = Path("~/.config/alas").expanduser()
 vaults = Path(home / "vaults")
 
+# Check if this is the first run.
 def firstrun_check():
     confdir = Path("~/.config/alas").expanduser()
     confdir.mkdir(parents=True, exist_ok=True)
@@ -52,6 +56,7 @@ def firstrun():
             print("Vault encryption disabled.")
         print("[3/3] Configure alas")
         lr = input("Set the ordering of the Notes column relative to the To-do column [l/R] ").strip().lower()
+        quotes = input("Would you like to download quotes at this time? An internet connection is required [Y/n]").strip().lower()
         # Work in progress
         vault_create(vault, passwd)
         print(div() + "\n" +
@@ -107,11 +112,13 @@ def vault_decrypt(name, password):
     temp.write_bytes(plaintext)
     temp.replace(path)
 
+# Vault creation
 def vault_create(name, password):
     name = name.strip()
     if not name or Path(name).name != name or name in {".", ".."}:
         raise ValueError("Invalid vault name")
     now = timestamp = datetime.now().astimezone().isoformat(timespec="seconds").strip()
+    # Boilerplate; default contents of all vaults
     boiler = {
         "meta": {
             "name": name,
@@ -126,6 +133,7 @@ def vault_create(name, password):
     path = vaults / f"{name}.vault"
     if path.exists():
         raise FileExistsError("Vault already exists")
+    # Write to vault
     path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False), encoding="utf-8")
     if password:
         try: vault_encrypt(name, password)
@@ -133,15 +141,18 @@ def vault_create(name, password):
             path.unlink(missing_ok=True)
             raise
 
+# Check if a vault is encrypted. Useful for future features where blindly appending to an encrypted vault could cause bugs, errors, or straight up data loss.
 def isencrypted(name):
     with open(vaults / (name + ".vault"), "rb") as file:
         header = f.read(5)
     return header == b"ALAS1"
 
+# Work in progress
 def notes_add(target, note):
     if isencrypted(target):
         return TypeError("This vault is encrypted; run 'alas vaults decrypt <vault> <password>' to decrypt")
 
+# Function to prompt for missing arguments.
 def promptmissing(style):
     if style == "vault":
         objstr = "Vault: "
