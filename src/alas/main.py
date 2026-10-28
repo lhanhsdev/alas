@@ -67,90 +67,96 @@ def firstrun():
         print("Uh oh! It looks like the program crashed. Changes have been reversed.")
 
 def vault_encrypt(name, password):
-    # Encrypt vault using AESGCM. Scrypt is used here to make brute-forcing take more time.
-    if not password: raise ValueError("Password must not be empty")
-    # Parameter-setting and preparing to encrypt
-    salt = secrets.token_bytes(16)
-    nonce = secrets.token_bytes(12)
-    kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
-    key = kdf.derive(password.encode("utf-8"))
-    path = Path(vaults) / (name + ".vault")
-    try:
-        plaintext = path.read_bytes()
-    except FileNotFoundError:
-        raise FileNotFoundError("File not found")
-    # Encryption here
-    ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
-    output = b"ALAS1" + salt + nonce + ciphertext
-    # Write encrypted data separately first, avoiding data loss in the event that the write fails.
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_bytes(output)
-    temp.replace(path)
+    if vault_exists(name):
+        # Encrypt vault using AESGCM. Scrypt is used here to make brute-forcing take more time.
+        if not password: raise ValueError("Password must not be empty")
+        # Parameter-setting and preparing to encrypt
+        salt = secrets.token_bytes(16)
+        nonce = secrets.token_bytes(12)
+        kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
+        key = kdf.derive(password.encode("utf-8"))
+        path = Path(vaults) / (name + ".vault")
+        try:
+            plaintext = path.read_bytes()
+        except FileNotFoundError:
+            raise FileNotFoundError("File not found")
+        # Encryption here
+        ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
+        output = b"ALAS1" + salt + nonce + ciphertext
+        # Write encrypted data separately first, avoiding data loss in the event that the write fails.
+        temp = path.with_name(path.name + ".tmp")
+        temp.write_bytes(output)
+        temp.replace(path)
 
 def vault_decrypt(name, password):
-    # Matching decryption function for encryption function above.
-    if not password: raise ValueError("Password must not be empty")
-    path = Path(vaults) / (name + ".vault")
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        raise FileNotFoundError("File not found")
-    # Validate provided vault by checking the magic header. Side note, why *magic* header? Sounds silly.
-    if len(data) < 49 or data[:5] != b"ALAS1":
-        raise ValueError("Invalid or corrupted vault file")
-    # Recover salt, nonce, and ciphertext
-    salt = data[5:21]
-    nonce = data[21:33]
-    ciphertext = data[33:]
-    # Derive same 256-bit key used during encryption.
-    kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
-    key = kdf.derive(password.encode("utf-8"))
-    # Decrypt and authenticate. Invalid passwords or tampering raise cryptography.exceptions.InvalidTag.
-    plaintext = AESGCM(key).decrypt(nonce, ciphertext, None)
-    # As always, write decrypted data separately before overwriting vault to avoid data loss.
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_bytes(plaintext)
-    temp.replace(path)
+    if vault_exists(name):
+        # Matching decryption function for encryption function above.
+        if not password: raise ValueError("Password must not be empty")
+        path = Path(vaults) / (name + ".vault")
+        try:
+            data = path.read_bytes()
+        except FileNotFoundError:
+            raise FileNotFoundError("File not found")
+        # Validate provided vault by checking the magic header. Side note, why *magic* header? Sounds silly.
+        if len(data) < 49 or data[:5] != b"ALAS1":
+            raise ValueError("Invalid or corrupted vault file")
+        # Recover salt, nonce, and ciphertext
+        salt = data[5:21]
+        nonce = data[21:33]
+        ciphertext = data[33:]
+        # Derive same 256-bit key used during encryption.
+        kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
+        key = kdf.derive(password.encode("utf-8"))
+        # Decrypt and authenticate. Invalid passwords or tampering raise cryptography.exceptions.InvalidTag.
+        plaintext = AESGCM(key).decrypt(nonce, ciphertext, None)
+        # As always, write decrypted data separately before overwriting vault to avoid data loss.
+        temp = path.with_name(path.name + ".tmp")
+        temp.write_bytes(plaintext)
+        temp.replace(path)
 
-# Vault creation
-def vault_create(name, password):
+def vaults_exists(name):
     name = name.strip()
     if not name or Path(name).name != name or name in {".", ".."}:
-        raise ValueError("Invalid vault name")
-    now = timestamp = datetime.now().astimezone().isoformat(timespec="seconds").strip()
-    # Boilerplate; default contents of all vaults
-    boiler = {
-        "meta": {
-            "name": name,
-            "version": "01",
-            "created": now,
-            "updated": now,
-        },
-        "notes": {},
-        "to-dos": {},
-    }
+        return True
     vaults.mkdir(parents=True, exist_ok=True)
     path = vaults / f"{name}.vault"
     if path.exists():
-        raise FileExistsError("Vault already exists")
-    # Write to vault
-    path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False), encoding="utf-8")
-    if password:
-        try: vault_encrypt(name, password)
-        except:
-            path.unlink(missing_ok=True)
-            raise
+        return True
+    return False
+
+# Vault creation
+def vault_create(name, password):
+    if not vaults_exists(name):
+        now = timestamp = datetime.now().astimezone().isoformat(timespec="seconds").strip()
+        # Boilerplate; default contents of all vaults
+        boiler = {
+            "meta": {
+                "name": name,
+                "version": "01",
+                "created": now,
+                "updated": now,
+            },
+            "notes": {},
+            "to-dos": {},
+        }
+        # Write to vault
+        path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False), encoding="utf-8")
+        if password:
+            try: vault_encrypt(name, password)
+            except:
+                path.unlink(missing_ok=True)
+                raise
 
 # Check if a vault is encrypted. Useful for future features where blindly appending to an encrypted vault could cause bugs, errors, or straight up data loss.
 def isencrypted(name):
     with open(vaults / (name + ".vault"), "rb") as file:
-        header = f.read(5)
+        header = file.read(5)
     return header == b"ALAS1"
 
 # Work in progress
 def notes_add(target, note):
     if isencrypted(target):
-        return TypeError("This vault is encrypted; run 'alas vaults decrypt <vault> <password>' to decrypt")
+        raise TypeError("This vault is encrypted; run 'alas vaults decrypt <vault> <password>' to decrypt")
 
 # Function to prompt for missing arguments.
 def promptmissing(style):
