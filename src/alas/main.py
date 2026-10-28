@@ -127,7 +127,8 @@ def isencrypted(name):
     return header == b"ALAS1"
 
 def notes_add(target, note):
-    pass
+    if isencrypted(target):
+        return TypeError("This vault is encrypted; run 'alas vaults decrypt <vault> <password>' to decrypt")
 
 # Function to print the welcome message.
 def welc():
@@ -161,7 +162,7 @@ def main():
     if firstrun_check():
         firstrun()
     else:
-        if args.subcommand == "notes":
+        if args.subcommand == "vaults":
             if args.action == "encrypt":
                 vault_encrypt((args.object), str(args.context))
             if args.action == "decrypt":
