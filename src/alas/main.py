@@ -67,11 +67,11 @@ def vault_encrypt(name, password):
     nonce = secrets.token_bytes(12)
     kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
     key = kdf.derive(password.encode("utf-8"))
+    path = Path(vaults) / (name + ".vault")
     try:
-        path = Path(vaults) / (name + ".vault")
+        plaintext = path.read_bytes()
     except FileNotFoundError:
         raise FileNotFoundError("File not found")
-    plaintext = path.read_bytes()
     # Encryption here
     ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
     output = b"ALAS1" + salt + nonce + ciphertext
