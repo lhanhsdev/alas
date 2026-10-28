@@ -1,6 +1,7 @@
 import getpass
 import os
 import sys
+import json
 import argparse
 import shutil
 import random
@@ -30,7 +31,7 @@ def firstrun_check():
         confdir.mkdir(parents=True, exist_ok=True)
         vaults.mkdir()
         with open(home / "config.conf", "w") as file:
-            file.write("INITIAL CONFIGURATION HERE; WORK IN PROGRESS / TO BE DECIDED")
+            file.write("")
         return True
     else: return False
 
@@ -100,15 +101,33 @@ def vault_decrypt(name, password):
     temp.replace(path)
 
 def vault_create(name, password):
-    home = Path("~/.config/alas").expanduser()
-    vaults = Path(home / "vaults")
-    with open(vaults / (name + ".vault"), "w") as file:
-        file.write(datetime.now().strftime(locale.nl_langinfo(locale.D_T_FMT)).strip())
+    now = timestamp = datetime.now().astimezone().isoformat(timespec="seconds").strip()
+    boiler = {
+        "meta": {
+            "name": name,
+            "version": "01",
+            "created": now,
+            "updated": now,
+        }
+        "notes": {}
+        "to-dos": {}
+    }
+    with open(vaults / (name + ".vault"), "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=4, ensure_ascii=False)
+
     try:
         vault_encrypt(name, password)
     except ValueError:
         # For future expansion
         pass
+
+def isencrypted(name):
+    with open(vaults / (name + ".vault"), "w") as file:
+        header = f.read(5)
+    return header == b"ALAS1"
+
+def notes_add(target, note):
+    pass
 
 # Function to print the welcome message.
 def welc():
