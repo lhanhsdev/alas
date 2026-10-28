@@ -17,8 +17,12 @@ parser = argparse.ArgumentParser(prog="alas", description="A productivity system
 subparsers = parser.add_subparsers(dest="subcommand", help="Specify the subsystem to use", required=False)
 notesparser = subparsers.add_parser("notes", help="Relating to the Notes subsystem")
 notesparser.add_argument("action", help="Specify the action to do")
-notesparser.add_argument("object", help="Specify the object to be acted upon")
+notesparser.add_argument("object", nargs="?", help="Specify the object to be acted upon")
 notesparser.add_argument("context", nargs="?", help="Specify the context for the action")
+vaultssparser = subparsers.add_parser("vaults", help="Relating to the Vaults subsystem")
+vaultssparser.add_argument("action", help="Specify the action to do")
+vaultssparser.add_argument("object", nargs="?", help="Specify the object to be acted upon")
+vaultssparser.add_argument("context", nargs="?", help="Specify the context for the action")
 
 args = parser.parse_args()
 
@@ -27,32 +31,35 @@ vaults = Path(home / "vaults")
 
 def firstrun_check():
     confdir = Path("~/.config/alas").expanduser()
-    if not confdir.is_dir():
-        confdir.mkdir(parents=True, exist_ok=True)
-        vaults.mkdir()
-        with open(home / "config.conf", "w") as file:
-            file.write("")
-        return True
-    else: return False
+    confdir.mkdir(parents=True, exist_ok=True)
+    vaults.mkdir(parents=True, exist_ok=True)
+    configfile = confdir / "config.conf"
+    configfile.touch(exist_ok=True)
+    return not any(vaults.glob("*.vault"))
 
 # Work in progress
 def firstrun():
-    print("Hello and welcome to alas! Let's set it up.\n" +
-          div() + "\n"
-          "[1/3] Vault setup")
-    vault = input("Vault name [personal]: ")
-    if vault.strip() == "":
-        vault = "personal"
-    print("[2/3] Vault encryption")
-    passwd = getpass.getpass("Encryption password (leave blank to disable; can be changed later): ").strip()
-    if passwd == "":
-        print("Vault encryption disabled.")
-    print("[3/3] Configure alas")
-    lr = input("Set the ordering of the Notes column relative to the To-do column [l/R] ").strip().lower()
-    # Work in progress
-    vault_create(vault, passwd)
-    print(div() + "\n" +
-          "Onboarding is done! Run 'alas' next to get started.")
+    try:
+        print("Hello and welcome to alas! Let's set it up.\n" +
+              div() + "\n"
+              "[1/3] Vault setup")
+        vault = input("Vault name [personal]: ")
+        if vault.strip() == "":
+            vault = "personal"
+        print("[2/3] Vault encryption")
+        passwd = getpass.getpass("Encryption password (leave blank to disable; can be changed later): ").strip()
+        if passwd == "":
+            print("Vault encryption disabled.")
+        print("[3/3] Configure alas")
+        lr = input("Set the ordering of the Notes column relative to the To-do column [l/R] ").strip().lower()
+        # Work in progress
+        vault_create(vault, passwd)
+        print(div() + "\n" +
+              "Onboarding is done! Run 'alas' next to get started.")
+    except:
+        home.rmdir()
+        print(div())
+        print("Uh oh! It looks like the program crashed. Changes have been reversed.")
 
 def vault_encrypt(name, password):
     # Encrypt vault using AESGCM. Scrypt is used here to make brute-forcing take more time.
@@ -101,6 +108,9 @@ def vault_decrypt(name, password):
     temp.replace(path)
 
 def vault_create(name, password):
+    name = name.strip()
+    if not name or Path(name).name != name or name in {".", ".."}:
+        raise ValueError("Invalid vault name")
     now = timestamp = datetime.now().astimezone().isoformat(timespec="seconds").strip()
     boiler = {
         "meta": {
@@ -108,27 +118,42 @@ def vault_create(name, password):
             "version": "01",
             "created": now,
             "updated": now,
-        }
-        "notes": {}
-        "to-dos": {}
+        },
+        "notes": {},
+        "to-dos": {},
     }
-    with open(vaults / (name + ".vault"), "w", encoding="utf-8") as file:
-        json.dump(data, file, indent=4, ensure_ascii=False)
-
-    try:
-        vault_encrypt(name, password)
-    except ValueError:
-        # For future expansion
-        pass
+    vaults.mkdir(parents=True, exist_ok=True)
+    path = vaults / f"{name}.vault"
+    if path.exists():
+        raise FileExistsError("Vault already exists")
+    path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False) encoding="utf-8")
+    if password:
+        try: vault_encrypt(name, password)
+        except:
+            path.unlink(missing_ok=True)
+            raise
 
 def isencrypted(name):
-    with open(vaults / (name + ".vault"), "w") as file:
+    with open(vaults / (name + ".vault"), "rb") as file:
         header = f.read(5)
     return header == b"ALAS1"
 
 def notes_add(target, note):
     if isencrypted(target):
         return TypeError("This vault is encrypted; run 'alas vaults decrypt <vault> <password>' to decrypt")
+
+def promptmissing(style):
+    if style == "vault":
+        objstr = "Vault: "
+        contstr = "Password: "
+        contgp = True
+    if args.object is None:
+        args.object = input(objstr).strip()
+    if args.context is None:
+        if contgp:
+            args.context = getpass.getpass(contstr).strip()
+        else:
+            args.context = input(contstr).strip()
 
 # Function to print the welcome message.
 def welc():
@@ -162,10 +187,14 @@ def main():
     if firstrun_check():
         firstrun()
     else:
+        if args.subcommand == "notes":
+            pass
         if args.subcommand == "vaults":
             if args.action == "encrypt":
+                promptmissing("vault")
                 vault_encrypt((args.object), str(args.context))
             if args.action == "decrypt":
+                promptmissing("vault")
                 vault_decrypt((args.object), str(args.context))
         else:
             # This is what 'alas list' does.
