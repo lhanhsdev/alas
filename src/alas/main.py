@@ -13,23 +13,30 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 # Set up the argument parser; Work in progress
-#parser = argparse.ArgumentParser()
-#parser.add_argument("subsystem")
-#parser.add_argument("action")
+# Kinda fucked up ts part lwk
+#parser = argparse.ArgumentParser(
+    #prog = "alas",
+    #description = "A productivity system for minimalists."
+#)
+#parser.add_argument("object")
 #parser.add_argument("target")
+#subparsers = parser.add_subparsers(dest="subcommand, "help="Specify the subsystem to use", required=False)
+#notesparser = subparsers.add_argument("notes", help=" Relating to the Notes subsystem")
+#notesparser.add_argument("action" help="Specify the action to do")
+#notesparser.add_argument("object" help="Specify the object to be acted upon")
 
 #args = parser.parse_args()
 
 def firstrun_check():
     confdir = Path("~/.config/alas").expanduser()
     if not confdir.is_dir():
-        #confdir.mkdir(parents=True, exist_ok=True)
-        #global home, vaults
-        #home = Path("~/.config/alas").expanduser()
-        #vaults = Path(home + "/vaults")
-        #vaults.mkdir()
-        #with open(home + "/config.conf", "w") as file:
-            #file.write("INITIAL CONFIGURATION HERE; WORK IN PROGRESS / TO BE DECIDED")
+        confdir.mkdir(parents=True, exist_ok=True)
+        global home, vaults
+        home = Path("~/.config/alas").expanduser()
+        vaults = Path(home / "vaults")
+        vaults.mkdir()
+        with open(home / "config.conf", "w") as file:
+            file.write("INITIAL CONFIGURATION HERE; WORK IN PROGRESS / TO BE DECIDED")
         return True
     else: return False
 
@@ -39,14 +46,18 @@ def firstrun():
           div() + "\n"
           "[1/3] Vault setup")
     vault = input("Vault name [personal]: ")
+    if vault.strip() == "":
+        vault = "personal"
     print("[2/3] Vault encryption")
-    passwd = getpass.getpass("Master password (leave blank to disable): ")
-    if passwd.strip() == "":
+    passwd = getpass.getpass("Master password (leave blank to disable): ").strip()
+    if passwd == "":
         print("Vault encryption disabled.")
     print("[3/3] Configure alas")
+    lr = input("Set the ordering of the Notes column relative to the To-do column [l/R] ").strip().lower()
     # Work in progress
+    vault_create(vault, passwd)
     print(div() + "\n" +
-          "Onboarding is done! Run 'alas list' next to get started.")
+          "Onboarding is done! Run 'alas' next to get started.")
 
 def vault_encrypt(name, password):
     # Encrypt vault using AESGCM. Scrypt is used here to make brute-forcing take more time.
@@ -56,7 +67,10 @@ def vault_encrypt(name, password):
     nonce = secrets.token_bytes(12)
     kdf = Scrypt(salt = salt, length = 32, n = 2**17, r = 8, p = 1)
     key = kdf.derive(password.encode("utf-8"))
-    path = Path(vaults) / name
+    try:
+        path = Path(vaults) / (name + ".vault")
+    except FileNotFoundError:
+        raise FileNotFoundError("File not found")
     plaintext = path.read_bytes()
     # Encryption here
     ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
@@ -69,8 +83,11 @@ def vault_encrypt(name, password):
 def vault_decrypt(name, password):
     # Matching decryption function for encryption function above.
     if not password: raise ValueError("Password must not be empty")
-    path = Path(vaults) / name
-    data = path.read_bytes()
+    path = Path(vaults) / (name + ".vault")
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise FileNotFoundError("File not found")
     # Validate provided vault by checking the magic header. Side note, why *magic* header? Sounds silly.
     if len(data) < 49 or data[:5] != b"ALAS1":
         raise ValueError("Invalid or corrupted vault file")
@@ -89,7 +106,15 @@ def vault_decrypt(name, password):
     temp.replace(path)
 
 def vault_create(name, password):
-    pass
+    home = Path("~/.config/alas").expanduser()
+    vaults = Path(home / "vaults")
+    with open(vaults / (name + ".vault"), "w") as file:
+        file.write(datetime.now().strftime(locale.nl_langinfo(locale.D_T_FMT)).strip())
+    try:
+        vault_encrypt(name, password)
+    except ValueError:
+        # For future expansion
+        pass
 
 # Function to print the welcome message.
 def welc():
