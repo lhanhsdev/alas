@@ -126,7 +126,7 @@ def vault_create(name, password):
     path = vaults / f"{name}.vault"
     if path.exists():
         raise FileExistsError("Vault already exists")
-    path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False) encoding="utf-8")
+    path.write_text(json.dumps(boiler, indent=4, ensure_ascii=False), encoding="utf-8")
     if password:
         try: vault_encrypt(name, password)
         except:
